@@ -12,7 +12,7 @@
 
 /*-------------Robot-specific constants-----------*/
 const double wheelDiameter = 0.195;               //Wheel radius, in m
-const double wheelbase = 0.450;                   //Wheelbase, in m when connected with Carriage "0.450", Only Pioneer robot "0.267"
+const double wheelbase = 0.338;                   //Wheelbase, in m when connected with Carriage "0.450", Only Pioneer robot "0.267"
 const double encoderRes = 980.0;                  //Encoder ticks or counts per rotation
 const double max_speed = 1.49;                    //Max speed in m/s {(2*PI*r*RPM)/60}
 
@@ -23,7 +23,7 @@ const byte noCommLoopMax = 10;                  //number of main loops the robot
 unsigned int noCommLoops = 0;                   //main loop without communication counter
 unsigned long currentMillis;
 unsigned long prevMillis;
-int count = 0 , pwmRamp = 0;
+int count = 0 , pwmRamp = 5;
 class motor
 {
 private:
@@ -70,7 +70,7 @@ void motor::setSpeed(int Value){
 }
 
 void motor::calActualRpm(){
-  if(abs(encoderPos)<10){                           //to stop reacting if there is only small movement.
+  if(abs(encoderPos)<4){                           //to stop reacting if there is only small movement.
     rpmActual=0;
   }
   else{
@@ -115,12 +115,12 @@ void displayEncoderCounts(){
 void displayRPM(){
   if (millis() - prevMillis >= LOOPTIME){
     prevMillis =millis();
-    if (count >=20){
+    if (count >=50){
       if (pwmRamp == 255 || pwmRamp == -255){
         pwmRamp = -pwmRamp;
       }
       else{
-        pwmRamp += 5;
+        pwmRamp += 10;
       }
       count = 0;
     }
@@ -131,10 +131,12 @@ void displayRPM(){
   motorLeft.encoderPos= 0;
   motorRight.encoderPos= 0;
   count++;
-  Serial.print("Right Motor RPM: ");                        
+  //Serial.print("Right Motor RPM: ");
+  Serial.print(pwmRamp);
+  Serial.print(",");                       
   Serial.print(motorRight.rpmActual);
   Serial.print(",");
-  Serial.print("Left Motor RPM: ");
+  //Serial.print("Left Motor RPM: ");
   Serial.println(motorLeft.rpmActual);
   }
 }

@@ -16,44 +16,57 @@
 #define rightEncA      3                   //Blue wire Sensor A
 #define rightEncB      2                   //Purple Wire Sensor B
 
+/*-------------PID Constants-----------*/
+
+#define leftKp        0.23280                //left pid proportionality constant
+#define leftKi        4.90759                //left pid integral constant
+#define leftKd        0.0                     //left pid derivative constant
+
+
+#define rightKp       0.23280                   //right pid proportionality constant
+#define rightKi       4.90759                   //right pid integral constant
+#define rightKd       0.0                       //right pid derivative constant
 
 /*-------------Time variables-----------*/
 
-#define LoopTime  100                             //Looptime in millisecond
-const byte noCommLoopMax = 20;                    //number of main loops the robot will execute without communication before stopping
+#define LoopTime  100                          //Looptime in millisecond
+const byte noCommLoopMax = 30;                    //number of main loops the robot will execute without communication before stopping
 unsigned int noCommLoops = 0;                     //main loop without communication counter
 unsigned long currentMillis = 0.0;
 unsigned long prevMillis = 0.0;
 
 /*-------------Robot-specific constants-----------*/
 const double wheelDiameter = 0.195;               //Wheel radius, in m
-const double trackWidth = 0.338;                  //Wheelbase, in m
+const double wheelbase = 0.267;                   //Wheelbase, in m
 const double encoderRes = 980.0;                  //Encoder ticks or counts per rotation
 const double max_speed = 1.49;                    //Max speed in m/s {(2*PI*r*RPM)/60}
+const float Pi = 3.141593;
 
-
-float linearVel = 0.0, angularVel = 0.0;          // Desired Linear and angular Velocities of robot in m/s
+double velLinearReq = 0.0,  velAngularReq = 0.0;    // Desired Linear and angular Velocities of robot in m/s and rad/s
 
 class motor
 {
 private:
   uint8_t _pwmPin,_dirPin, _encA,_encB;
+  double Kp = 0.0,Ki = 0.0,Kd = 0.0,error = 0.0,errorIntegral = 0.0 , errorDifferential = 0.0, errorPrev =0.0;
 public:
-  motor(uint8_t pwmPin , uint8_t dirPin, uint8_t encA , uint8_t encB );
-  float speedActual = 0.0 ,speedCmd = 0.0;
-  int pwmValue = 0; 
+  motor(uint8_t pwmPin , uint8_t dirPin, uint8_t encA , uint8_t encB, double kp ,double ki, double kd);
+  double rpmActual = 0.0, speedActual = 0.0 ,rpmCmd = 0.0 , pwmValue=0.0; 
   volatile long encoderPos = 0; 
   void intialize();
   void setSpeed(int Value);
-  void calActualSpeed();
+  void pidCompute();
+  void calActualRpm();
 };
-
-motor::motor(uint8_t pwmPin , uint8_t dirPin , uint8_t encA , uint8_t encB)
+motor::motor(uint8_t pwmPin , uint8_t dirPin , uint8_t encA , uint8_t encB, double kp ,double ki, double kd)
 {
   _pwmPin = pwmPin;
   _dirPin = dirPin;
   _encA = encA;
   _encB = encB;
+  Kp = kp;
+  Ki = ki;
+  Kd = kd;
 }
 
 void motor::intialize(){
@@ -81,28 +94,32 @@ void motor::setSpeed(int Value){
   }
 }
 
-void motor::calActualSpeed(){
-  if(abs(encoderPos)<4){
-    speedActual=0.0;
-  }
-  else{
-    speedActual = ((encoderPos/encoderRes)*(1000/LoopTime)*PI*wheelDiameter);
-  }
+void motor::pidCompute(){
+  error = rpmCmd - rpmActual;
+  errorIntegral = errorIntegral + error*(0.1);
+  errorDifferential = (error-errorPrev)/(0.1);
+  pwmValue = (Kp*error)+(Ki*errorIntegral)+(Kd*errorDifferential);
+  errorPrev = error;
+  errorIntegral = constrain(errorIntegral ,-255,255);
+}
+void motor::calActualRpm(){
+  rpmActual = ((encoderPos/encoderRes)*(1000/LoopTime)*60);
+  speedActual = (rpmActual*Pi*wheelDiameter)/60;
   encoderPos = 0;  
 }
+motor motorLeft(leftPWMPin, leftDirPin, leftEncA ,leftEncB,leftKp,leftKi,leftKd);
+motor motorRight(rightPWMPin,rightDirPin,rightEncA,rightEncB,rightKp,rightKi,rightKd);
 
-//Creating Objects for Left and Right motors
-motor motorLeft(leftPWMPin, leftDirPin, leftEncA ,leftEncB);
-motor motorRight(rightPWMPin,rightDirPin,rightEncA,rightEncB);
 
 ros::NodeHandle nh;
 
 //Callback function for Subscribed cmd_vel topic from ROS
 void cmd_vel_callback( const geometry_msgs::Twist& cmd_vel){ 
   noCommLoops = 0;                                                    
-  linearVel = cmd_vel.linear.x;                                     
-  angularVel = cmd_vel.angular.z;
-
+  velLinearReq = cmd_vel.linear.x;                                     
+  velAngularReq = cmd_vel.angular.z;
+  motorLeft.rpmCmd = ((velLinearReq + (velAngularReq*(wheelbase/2)))*60)/(Pi*wheelDiameter);
+  motorRight.rpmCmd= ((velLinearReq - (velAngularReq*(wheelbase/2)))*60)/(Pi*wheelDiameter);
 }
 ros::Subscriber<geometry_msgs::Twist> cmd_vel("cmd_vel", cmd_vel_callback); //create a subscriber to ROS topic for cmd_vel commands (will execute "cmd_vel_callback" function when receiving data)
 geometry_msgs::Vector3Stamped speed_msg;                                //create a "speed_msg" ROS message
@@ -124,20 +141,20 @@ void setup() {
 void loop() {
   nh.spinOnce();
   if((millis()-prevMillis) >= LoopTime)   
-  { 
+  {                                                                           // enter timed loop
     prevMillis = millis();
-      motorLeft.pwmValue = 133*linearVel-133*angularVel; 
-      motorRight.pwmValue = 133*linearVel+133*angularVel;     
+    motorLeft.calActualRpm();
+    motorRight.calActualRpm();
+    motorRight.pidCompute();
+    motorLeft.pidCompute();
     if (noCommLoops >= noCommLoopMax) {
       motorLeft.setSpeed(0);
       motorRight.setSpeed(0);
     }
     else {
-      motorLeft.setSpeed(motorLeft.pwmValue);
-      motorRight.setSpeed(motorRight.pwmValue);
+      motorLeft.setSpeed((int)motorLeft.pwmValue);
+      motorRight.setSpeed((int)motorRight.pwmValue);
     }
-    motorLeft.calActualSpeed();
-    motorRight.calActualSpeed();
     noCommLoops++;
     if (noCommLoops == 65535){
       noCommLoops = noCommLoopMax;

@@ -1,0 +1,13 @@
+encoder_wrapper.o: D:/Atom/simulink_files/encoder_wrapper.c \
+ D:/Atom/simulink_files/DataAcquisition_RPM_ert_rtw/rtwtypes.h \
+ C:/ProgramData/MATLAB/SupportPackages/R2022b/aIDE/hardware/arduino/avr/cores/arduino/Arduino.h \
+ C:/ProgramData/MATLAB/SupportPackages/R2022b/aIDE/hardware/arduino/avr/cores/arduino/binary.h \
+ C:/ProgramData/MATLAB/SupportPackages/R2022b/aIDE/hardware/arduino/avr/variants/mega/pins_arduino.h
+
+D:/Atom/simulink_files/DataAcquisition_RPM_ert_rtw/rtwtypes.h:
+
+C:/ProgramData/MATLAB/SupportPackages/R2022b/aIDE/hardware/arduino/avr/cores/arduino/Arduino.h:
+
+C:/ProgramData/MATLAB/SupportPackages/R2022b/aIDE/hardware/arduino/avr/cores/arduino/binary.h:
+
+C:/ProgramData/MATLAB/SupportPackages/R2022b/aIDE/hardware/arduino/avr/variants/mega/pins_arduino.h:
